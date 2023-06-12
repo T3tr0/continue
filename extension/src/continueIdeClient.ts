@@ -13,6 +13,7 @@ import { FileEditWithFullContents } from "../schema/FileEditWithFullContents";
 import fs = require("fs");
 import { WebsocketMessenger } from "./util/messenger";
 import { CapturedTerminal } from "./terminal/terminalEmulator";
+import stripAnsi from "strip-ansi";
 
 class IdeProtocolClient {
   private messenger: WebsocketMessenger | null = null;
@@ -62,6 +63,10 @@ class IdeProtocolClient {
         this._makingEdit--;
       }
     });
+
+    if (!this.continueTerminal) {
+      this.setupCapturedTerminal();
+    }
   }
 
   async handleMessage(messageType: string, data: any) {
@@ -322,13 +327,20 @@ class IdeProtocolClient {
 
   private continueTerminal: CapturedTerminal | undefined;
 
+  setupCapturedTerminal() {
+    this.continueTerminal = new CapturedTerminal("Continue");
+    this.continueTerminal.onData((data) => {
+      this.messenger?.send("terminalData", { data: stripAnsi(data) });
+    });
+  }
+
   async runCommand(command: string) {
     if (!this.continueTerminal) {
-      this.continueTerminal = new CapturedTerminal("Continue");
+      this.setupCapturedTerminal();
     }
 
-    this.continueTerminal.show();
-    return await this.continueTerminal.runCommand(command);
+    this.continueTerminal!.show();
+    return await this.continueTerminal!.runCommand(command);
   }
 }
 

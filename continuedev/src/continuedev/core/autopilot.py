@@ -79,7 +79,8 @@ class Autopilot(ContinueBaseModel):
             # TODO: You're storing a lot of unecessary data here. Can compress into EditDiffs on the spot, and merge.
             # self._manual_edits_buffer = merge_file_edit(self._manual_edits_buffer, edit)
 
-    def handle_traceback(self, traceback: str):
+    def handle_terminal_data(self, data: str):
+        # Do something similar to accept_user_input
         raise NotImplementedError
 
     _step_depth: int = 0

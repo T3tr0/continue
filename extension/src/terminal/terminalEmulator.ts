@@ -57,6 +57,7 @@ export class CapturedTerminal {
   private dataBuffer: string = "";
 
   private onDataListeners: ((data: string) => void)[] = [];
+  private waitForCommandListeners: ((data: string) => void)[] = [];
 
   show() {
     this.terminal.show();
@@ -67,7 +68,7 @@ export class CapturedTerminal {
 
   private async waitForCommandToFinish() {
     return new Promise<string>((resolve, reject) => {
-      this.onDataListeners.push((data: any) => {
+      this.waitForCommandListeners.push((data: any) => {
         const strippedData = stripAnsi(data);
         this.dataBuffer += strippedData;
         const lines = this.dataBuffer.split("\n");
@@ -79,10 +80,14 @@ export class CapturedTerminal {
         ) {
           resolve(this.dataBuffer);
           this.dataBuffer = "";
-          this.onDataListeners = [];
+          this.waitForCommandListeners = [];
         }
       });
     });
+  }
+
+  onData(listener: (data: string) => void) {
+    this.onDataListeners.push(listener);
   }
 
   async runCommand(command: string): Promise<string> {
@@ -137,6 +142,9 @@ export class CapturedTerminal {
       this.writeEmitter.fire(data);
 
       for (let listener of this.onDataListeners) {
+        listener(data);
+      }
+      for (let listener of this.waitForCommandListeners) {
         listener(data);
       }
     });

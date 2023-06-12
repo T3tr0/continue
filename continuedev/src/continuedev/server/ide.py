@@ -109,6 +109,8 @@ class IdeProtocolServer(AbstractIdeProtocolServer):
     async def handle_json(self, message_type: str, data: Any):
         if message_type == "openGUI":
             await self.openGUI()
+        elif message_type == "terminalData":
+            await self.onTerminalData(data["data"])
         elif message_type == "setFileOpen":
             await self.setFileOpen(data["filepath"], data["open"])
         elif message_type == "fileEdits":
@@ -116,6 +118,7 @@ class IdeProtocolServer(AbstractIdeProtocolServer):
                 map(lambda d: FileEditWithFullContents.parse_obj(d), data["fileEdits"]))
             self.onFileEdits(fileEdits)
         elif message_type in ["highlightedCode", "openFiles", "readFile", "editFile", "workspaceDirectory", "getUserSecret", "runCommand"]:
+            # These are all responses from a request of the same type
             self.sub_queue.post(message_type, data)
         else:
             raise ValueError("Unknown message type", message_type)
@@ -169,10 +172,10 @@ class IdeProtocolServer(AbstractIdeProtocolServer):
     def onAcceptRejectSuggestion(self, suggestionId: str, accepted: bool):
         pass
 
-    def onTraceback(self, traceback: Traceback):
+    def onTerminalData(self, data: str):
         # Same as below, maybe not every autopilot?
         for _, session in self.session_manager.sessions.items():
-            session.autopilot.handle_traceback(traceback)
+            session.autopilot.handle_terminal_data(data)
 
     def onFileSystemUpdate(self, update: FileSystemEdit):
         # Access to Autopilot (so SessionManager)

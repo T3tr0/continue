@@ -36,8 +36,8 @@ class AbstractIdeProtocolServer(ABC):
         """Called when the user accepts or rejects a suggestion"""
 
     @abstractmethod
-    def onTraceback(self, traceback: Traceback):
-        """Called when a traceback is received"""
+    def onTerminalData(self, data: str):
+        """Called when terminal stdout/stderr data is received"""
 
     @abstractmethod
     def onFileSystemUpdate(self, update: FileSystemEdit):
