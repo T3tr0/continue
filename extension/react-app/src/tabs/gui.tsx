@@ -353,7 +353,7 @@ function GUI(props: GUIProps) {
           <>
             <Loader></Loader>
             <p style={{ textAlign: "center" }}>
-              Trying to reconnect with server...
+              Loading the Continue server...
             </p>
           </>
         )}

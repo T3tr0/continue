@@ -25,8 +25,6 @@ export async function activateExtension(
   registerAllCommands(context);
 
   const serverUrl = getContinueServerUrl();
-  // vscode.window.registerWebviewViewProvider("continue.continueGUIView", setupDebugPanel);
-  await startContinuePythonServer();
 
   ideProtocolClient = new IdeProtocolClient(
     `${serverUrl.replace("http", "ws")}/ide/ws`,
@@ -46,4 +44,5 @@ export async function activateExtension(
       }
     )
   );
+  await startContinuePythonServer();
 }
