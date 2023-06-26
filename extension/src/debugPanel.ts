@@ -1,92 +1,12 @@
 import * as vscode from "vscode";
-import {
-  debugApi,
-  getContinueServerUrl,
-  runPythonScript,
-  unittestApi,
-} from "./bridge";
-import { writeAndShowUnitTest } from "./decorations";
-import { showSuggestion } from "./suggestions";
-import { getLanguageLibrary } from "./languages";
+import { getContinueServerUrl } from "./bridge";
 import {
   getExtensionUri,
   getNonce,
   openEditorAndRevealRange,
 } from "./util/vscode";
-import { sendTelemetryEvent, TelemetryEvent } from "./telemetry";
-import { RangeInFile, SerializedDebugContext } from "./client";
-import { addFileSystemToDebugContext } from "./util/util";
+import { RangeInFile } from "./client";
 const WebSocket = require("ws");
-
-class StreamManager {
-  private _fullText: string = "";
-  private _insertionPoint: vscode.Position | undefined;
-
-  private _addToEditor(update: string) {
-    let editor =
-      vscode.window.activeTextEditor || vscode.window.visibleTextEditors[0];
-
-    if (typeof this._insertionPoint === "undefined") {
-      if (editor?.selection.isEmpty) {
-        this._insertionPoint = editor?.selection.active;
-      } else {
-        this._insertionPoint = editor?.selection.end;
-      }
-    }
-    editor?.edit((editBuilder) => {
-      if (this._insertionPoint) {
-        editBuilder.insert(this._insertionPoint, update);
-        this._insertionPoint = this._insertionPoint.translate(
-          Array.from(update.matchAll(/\n/g)).length,
-          update.length
-        );
-      }
-    });
-  }
-
-  public closeStream() {
-    this._fullText = "";
-    this._insertionPoint = undefined;
-    this._codeBlockStatus = "closed";
-    this._pendingBackticks = 0;
-  }
-
-  private _codeBlockStatus: "open" | "closed" | "language-descriptor" =
-    "closed";
-  private _pendingBackticks: number = 0;
-  public onStreamUpdate(update: string) {
-    let textToInsert = "";
-    for (let i = 0; i < update.length; i++) {
-      switch (this._codeBlockStatus) {
-        case "closed":
-          if (update[i] === "`" && this._fullText.endsWith("``")) {
-            this._codeBlockStatus = "language-descriptor";
-          }
-          break;
-        case "language-descriptor":
-          if (update[i] === " " || update[i] === "\n") {
-            this._codeBlockStatus = "open";
-          }
-          break;
-        case "open":
-          if (update[i] === "`") {
-            if (this._fullText.endsWith("``")) {
-              this._codeBlockStatus = "closed";
-              this._pendingBackticks = 0;
-            } else {
-              this._pendingBackticks += 1;
-            }
-          } else {
-            textToInsert += "`".repeat(this._pendingBackticks) + update[i];
-            this._pendingBackticks = 0;
-          }
-          break;
-      }
-      this._fullText += update[i];
-    }
-    this._addToEditor(textToInsert);
-  }
-}
 
 let websocketConnections: { [url: string]: WebsocketConnection | undefined } =
   {};
@@ -151,8 +71,6 @@ class WebsocketConnection {
   }
 }
 
-let streamManager = new StreamManager();
-
 export let debugPanelWebview: vscode.Webview | undefined;
 export function setupDebugPanel(
   panel: vscode.WebviewPanel | vscode.WebviewView,
@@ -166,6 +84,9 @@ export function setupDebugPanel(
   let extensionUri = getExtensionUri();
   let scriptUri: string;
   let styleMainUri: string;
+  let vscMediaUrl: string = debugPanelWebview
+    .asWebviewUri(vscode.Uri.joinPath(extensionUri, "react-app/dist"))
+    .toString();
 
   const isProduction = true; // context?.extensionMode === vscode.ExtensionMode.Development;
   if (!isProduction) {
@@ -257,6 +178,7 @@ export function setupDebugPanel(
           vscMachineId: vscode.env.machineId,
           apiUrl: getContinueServerUrl(),
           sessionId,
+          vscMediaUrl,
         });
 
         // // Listen for changes to server URL in settings

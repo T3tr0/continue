@@ -12,7 +12,6 @@ import { debugPanelWebview, setupDebugPanel } from "./debugPanel";
 import { FileEditWithFullContents } from "../schema/FileEditWithFullContents";
 import fs = require("fs");
 import { WebsocketMessenger } from "./util/messenger";
-import { CapturedTerminal } from "./terminal/terminalEmulator";
 import { decorationManager } from "./decorations";
 
 class IdeProtocolClient {
@@ -162,15 +161,18 @@ class IdeProtocolClient {
       });
       editor.setDecorations(decorationType, [range]);
 
-      // Listen for changes to cursor position
-      const cursorDisposable = vscode.window.onDidChangeTextEditorSelection(
-        (event) => {
-          if (event.textEditor.document.uri.fsPath === rangeInFile.filepath) {
-            cursorDisposable.dispose();
-            editor.setDecorations(decorationType, []);
+      // Listen for changes to cursor position and then remove the decoration (but keep for at least 2 seconds)
+      const allowRemoveHighlight = () => {
+        const cursorDisposable = vscode.window.onDidChangeTextEditorSelection(
+          (event) => {
+            if (event.textEditor.document.uri.fsPath === rangeInFile.filepath) {
+              cursorDisposable.dispose();
+              editor.setDecorations(decorationType, []);
+            }
           }
-        }
-      );
+        );
+      };
+      setTimeout(allowRemoveHighlight, 2000);
     }
   }
 
@@ -296,7 +298,7 @@ class IdeProtocolClient {
           edit.range.start.line,
           edit.range.start.character,
           edit.range.end.line,
-          edit.range.end.character + 1
+          edit.range.end.character
         );
 
         editor.edit((editBuilder) => {
@@ -336,17 +338,14 @@ class IdeProtocolClient {
     return rangeInFiles;
   }
 
-  public continueTerminal: CapturedTerminal | undefined;
-
   async runCommand(command: string) {
-    if (!this.continueTerminal || this.continueTerminal.isClosed()) {
-      this.continueTerminal = new CapturedTerminal({
-        name: "Continue",
-      });
+    if (vscode.window.terminals.length) {
+      vscode.window.terminals[0].sendText(command);
+    } else {
+        const terminal = vscode.window.createTerminal();
+        terminal.show();
+        terminal.sendText(command);
     }
-
-    this.continueTerminal.show();
-    return await this.continueTerminal.runCommand(command);
   }
 
   sendCommandOutput(output: string) {

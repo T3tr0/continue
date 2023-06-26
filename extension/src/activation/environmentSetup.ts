@@ -121,7 +121,7 @@ async function setupPythonEnv() {
     activateCmd,
     pipUpgradeCmd,
     `${pipCmd} install -r requirements.txt`,
-  ].join(" && ");
+  ].join(" ; ");
   const [, stderr] = await runCommand(installRequirementsCommand);
   if (stderr) {
     throw new Error(stderr);
@@ -161,25 +161,33 @@ function writeEnvFile(path: string, key: string, value: string) {
   fs.writeFileSync(path, newEnvFile);
 }
 
+async function checkServerRunning(serverUrl: string): Promise<boolean> {
+  // Check if already running by calling /health
+  try {
+    const response = await fetch(serverUrl + "/health");
+    if (response.status === 200) {
+      console.log("Continue python server already running");
+      return true;
+    } else {
+      return false;
+    }
+  } catch (e) {
+    return false;
+  }
+}
+
 export async function startContinuePythonServer() {
   await setupPythonEnv();
 
   // Check vscode settings
-  let serverUrl = getContinueServerUrl();
+  const serverUrl = getContinueServerUrl();
   if (serverUrl !== "http://localhost:8000") {
     return;
   }
 
   console.log("Starting Continue python server...");
 
-  // Check if already running by calling /health
-  try {
-    const response = await fetch(serverUrl + "/health");
-    if (response.status === 200) {
-      console.log("Continue python server already running");
-      return;
-    }
-  } catch (e) {}
+  if (await checkServerRunning(serverUrl)) return;
 
   let activateCmd = ". env/bin/activate";
   let pythonCmd = "python3";
@@ -191,9 +199,9 @@ export async function startContinuePythonServer() {
   let command = `cd ${path.join(
     getExtensionUri().fsPath,
     "scripts"
-  )} && ${activateCmd} && cd .. && ${pythonCmd} -m scripts.run_continue_server`;
+  )} ; ${activateCmd} ; cd .. ; ${pythonCmd} -m scripts.run_continue_server`;
 
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       const child = spawn(command, {
         shell: true,
@@ -213,7 +221,12 @@ export async function startContinuePythonServer() {
       });
     } catch (e) {
       console.log("Failed to start Continue python server", e);
-      reject();
+      // If failed, check if it's because the server is already running (might have happened just after we checked above)
+      if (await checkServerRunning(serverUrl)) {
+        resolve(null);
+      } else {
+        reject();
+      }
     }
   });
 }
@@ -242,10 +255,10 @@ export async function downloadPython3() {
     throw new Error("python3 not found");
   } else if (os === "linux") {
     command =
-      "sudo apt update && upgrade && sudo apt install python3 python3-pip";
+      "sudo apt update ; upgrade ; sudo apt install python3 python3-pip";
   } else if (os === "win32") {
     command =
-      "wget -O python_installer.exe https://www.python.org/ftp/python/3.11.3/python-3.11.3-amd64.exe && python_installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0";
+      "wget -O python_installer.exe https://www.python.org/ftp/python/3.11.3/python-3.11.3-amd64.exe ; python_installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0";
     pythonCmd = "python";
   }
 
