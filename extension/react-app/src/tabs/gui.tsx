@@ -352,9 +352,7 @@ function GUI(props: GUIProps) {
         {!connected && (
           <>
             <Loader></Loader>
-            <p style={{ textAlign: "center" }}>
-              Loading the Continue server...
-            </p>
+            <p style={{ textAlign: "center" }}>Loading Continue server...</p>
           </>
         )}
         {history?.timeline.map((node: HistoryNode, index: number) => {
