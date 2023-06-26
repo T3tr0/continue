@@ -70,6 +70,10 @@ class ContinueGUIClientProtocol extends AbstractContinueGUIClientProtocol {
   deleteAtIndex(index: number) {
     this.messenger.send("delete_at_index", { index });
   }
+
+  changeDefaultModel(model: string) {
+    this.messenger.send("change_default_model", { model });
+  }
 }
 
 export default ContinueGUIClientProtocol;
