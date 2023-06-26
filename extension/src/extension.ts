@@ -25,8 +25,8 @@ export function activate(context: vscode.ExtensionContext) {
       cancellable: false,
     },
     async () => {
-      await startContinuePythonServer();
       dynamicImportAndActivate(context, true);
+      await startContinuePythonServer();
     }
   );
 }

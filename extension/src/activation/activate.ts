@@ -18,12 +18,11 @@ export function activateExtension(
   context: vscode.ExtensionContext,
   showTutorial: boolean
 ) {
+  extensionContext = context;
   sendTelemetryEvent(TelemetryEvent.ExtensionActivated);
 
   registerAllCodeLensProviders(context);
   registerAllCommands(context);
-
-  // vscode.window.registerWebviewViewProvider("continue.continueGUIView", setupDebugPanel);
 
   let serverUrl = getContinueServerUrl();
 
@@ -33,20 +32,18 @@ export function activateExtension(
   );
 
   // Setup the left panel
-  (async () => {
-    const sessionId = await ideProtocolClient.getSessionId();
-    const provider = new ContinueGUIWebviewViewProvider(sessionId);
+  const sessionIdPromise = ideProtocolClient.getSessionId();
+  const provider = new ContinueGUIWebviewViewProvider(sessionIdPromise);
 
-    context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider(
-        "continue.continueGUIView",
-        provider,
-        {
-          webviewOptions: { retainContextWhenHidden: true },
-        }
-      )
-    );
-  })();
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      "continue.continueGUIView",
+      provider,
+      {
+        webviewOptions: { retainContextWhenHidden: true },
+      }
+    )
+  );
 
   // All opened terminals should be replaced by our own terminal
   vscode.window.onDidOpenTerminal((terminal) => {
@@ -84,6 +81,4 @@ export function activateExtension(
       ideProtocolClient.continueTerminal = capturedTerminal;
     }
   });
-
-  extensionContext = context;
 }

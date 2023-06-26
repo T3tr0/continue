@@ -36,6 +36,8 @@ export class WebsocketMessenger extends Messenger {
     // }
 
     const newWebsocket = new WebSocket(this.serverUrl);
+    this.websocket = newWebsocket;
+
     for (const listener of this.onOpenListeners) {
       this.onOpen(listener);
     }
@@ -47,6 +49,14 @@ export class WebsocketMessenger extends Messenger {
         this.onMessageType(messageType, listener);
       }
     }
+
+    // Wait a second, then try to reconnect
+    this.onClose(() => {
+      setTimeout(() => {
+        this.websocket = this._newWebsocket();
+      }, 1000);
+    });
+
     return newWebsocket;
   }
 
@@ -54,6 +64,14 @@ export class WebsocketMessenger extends Messenger {
     super();
     this.serverUrl = serverUrl;
     this.websocket = this._newWebsocket();
+
+    const interval = setInterval(() => {
+      if (this.websocket.readyState === this.websocket.OPEN) {
+        clearInterval(interval);
+      } else if (this.websocket.readyState !== this.websocket.CONNECTING) {
+        this.websocket = this._newWebsocket();
+      }
+    }, 1000);
   }
 
   send(messageType: string, data: object) {

@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { History } from "../../../schema/History";
 import { HistoryNode } from "../../../schema/HistoryNode";
 import StepContainer from "../components/StepContainer";
-import useContinueGUIProtocol from "../hooks/useWebsocket";
+import useContinueGUIProtocol from "../hooks/useContinueGUIProtocol";
 import {
   BookOpen,
   ChatBubbleOvalLeftEllipsis,
@@ -182,7 +182,7 @@ function GUI(props: GUIProps) {
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
 
   const topGuiDivRef = useRef<HTMLDivElement>(null);
-  const client = useContinueGUIProtocol();
+  const { client, connected } = useContinueGUIProtocol();
 
   const [scrollTimeout, setScrollTimeout] = useState<NodeJS.Timeout | null>(
     null
@@ -320,7 +320,7 @@ function GUI(props: GUIProps) {
           }
         }}
       >
-        {typeof client === "undefined" && (
+        {!connected && (
           <>
             <Loader></Loader>
             <p style={{ textAlign: "center" }}>

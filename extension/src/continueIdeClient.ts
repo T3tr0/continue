@@ -18,20 +18,24 @@ import { decorationManager } from "./decorations";
 class IdeProtocolClient {
   private messenger: WebsocketMessenger | null = null;
   private readonly context: vscode.ExtensionContext;
+  private readonly _serverUrl: string;
 
   private _makingEdit = 0;
 
-  constructor(serverUrl: string, context: vscode.ExtensionContext) {
-    this.context = context;
-
-    let messenger = new WebsocketMessenger(serverUrl);
+  private _newMessenger() {
+    const messenger = new WebsocketMessenger(this._serverUrl);
     this.messenger = messenger;
-    messenger.onClose(() => {
-      this.messenger = null;
-    });
     messenger.onMessage((messageType, data) => {
       this.handleMessage(messageType, data);
     });
+
+    return messenger;
+  }
+
+  constructor(serverUrl: string, context: vscode.ExtensionContext) {
+    this.context = context;
+    this._serverUrl = serverUrl;
+    this.messenger = this._newMessenger();
 
     // Setup listeners for any file changes in open editors
     vscode.workspace.onDidChangeTextDocument((event) => {
@@ -216,9 +220,18 @@ class IdeProtocolClient {
   }
 
   async getSessionId(): Promise<string> {
-    if (this.messenger === null) {
-      console.log("MESSENGER IS NULL");
-    }
+    await new Promise((resolve, reject) => {
+      // Repeatedly try to connect to the server
+      const interval = setInterval(() => {
+        if (
+          this.messenger &&
+          this.messenger.websocket.readyState === 1 // 1 => OPEN
+        ) {
+          clearInterval(interval);
+          resolve(null);
+        }
+      }, 1000);
+    });
     const resp = await this.messenger?.sendAndReceive("openGUI", {});
     const sessionId = resp.sessionId;
     console.log("New Continue session with ID: ", sessionId);

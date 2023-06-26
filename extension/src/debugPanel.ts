@@ -93,9 +93,31 @@ let websocketConnections: { [url: string]: WebsocketConnection | undefined } =
 
 class WebsocketConnection {
   private _ws: WebSocket;
+  private readonly _url: string;
   private _onMessage: (message: string) => void;
   private _onOpen: () => void;
   private _onClose: () => void;
+
+  private _newWebsocket() {
+    const ws = new WebSocket(this._url);
+
+    ws.addEventListener("message", (event: any) => {
+      this._onMessage(event.data);
+    });
+    ws.addEventListener("close", () => {
+      this._onClose();
+
+      // Wait a second, then try to reconnect
+      setTimeout(() => {
+        this._ws = this._newWebsocket();
+      }, 1000);
+    });
+    ws.addEventListener("open", () => {
+      this._onOpen();
+    });
+
+    return ws;
+  }
 
   constructor(
     url: string,
@@ -103,20 +125,18 @@ class WebsocketConnection {
     onOpen: () => void,
     onClose: () => void
   ) {
-    this._ws = new WebSocket(url);
+    this._url = url;
     this._onMessage = onMessage;
     this._onOpen = onOpen;
     this._onClose = onClose;
 
-    this._ws.addEventListener("message", (event) => {
-      this._onMessage(event.data);
-    });
-    this._ws.addEventListener("close", () => {
-      this._onClose();
-    });
-    this._ws.addEventListener("open", () => {
-      this._onOpen();
-    });
+    this._ws = this._newWebsocket();
+
+    const interval = setInterval(() => {
+      if (this._ws.readyState !== WebSocket.OPEN)
+        this._ws = this._newWebsocket();
+      else clearInterval(interval);
+    }, 1000);
   }
 
   public send(message: string) {
@@ -136,7 +156,7 @@ let streamManager = new StreamManager();
 export let debugPanelWebview: vscode.Webview | undefined;
 export function setupDebugPanel(
   panel: vscode.WebviewPanel | vscode.WebviewView,
-  sessionId: string
+  sessionIdPromise: Promise<string>
 ): string {
   debugPanelWebview = panel.webview;
   panel.onDidDispose(() => {
@@ -231,6 +251,7 @@ export function setupDebugPanel(
   panel.webview.onDidReceiveMessage(async (data) => {
     switch (data.type) {
       case "onLoad": {
+        let sessionId = await sessionIdPromise;
         panel.webview.postMessage({
           type: "onLoad",
           vscMachineId: vscode.env.machineId,
@@ -252,7 +273,6 @@ export function setupDebugPanel(
 
         break;
       }
-
       case "websocketForwardingOpen": {
         let url = data.url;
         if (typeof websocketConnections[url] === "undefined") {
@@ -273,96 +293,8 @@ export function setupDebugPanel(
         connection.send(data.message);
         break;
       }
-      case "listTenThings": {
-        sendTelemetryEvent(TelemetryEvent.GenerateIdeas);
-        let resp = await debugApi.listtenDebugListPost({
-          serializedDebugContext: data.debugContext,
-        });
-        panel.webview.postMessage({
-          type: "listTenThings",
-          value: resp.completion,
-        });
-        break;
-      }
-      case "suggestFix": {
-        let completion: string;
-        let codeSelection = data.debugContext.rangesInFiles?.at(0);
-        if (codeSelection) {
-          completion = (
-            await debugApi.inlineDebugInlinePost({
-              inlineBody: {
-                filecontents: await vscode.workspace.fs
-                  .readFile(vscode.Uri.file(codeSelection.filepath))
-                  .toString(),
-                startline: codeSelection.range.start.line,
-                endline: codeSelection.range.end.line,
-                traceback: data.debugContext.traceback,
-              },
-            })
-          ).completion;
-        } else if (data.debugContext.traceback) {
-          completion = (
-            await debugApi.suggestionDebugSuggestionGet({
-              traceback: data.debugContext.traceback,
-            })
-          ).completion;
-        } else {
-          break;
-        }
-        panel.webview.postMessage({
-          type: "suggestFix",
-          value: completion,
-        });
-        break;
-      }
-      case "findSuspiciousCode": {
-        let traceback = getLanguageLibrary(".py").parseFirstStacktrace(
-          data.debugContext.traceback
-        );
-        if (traceback === undefined) return;
-        vscode.commands.executeCommand(
-          "continue.findSuspiciousCode",
-          data.debugContext
-        );
-        break;
-      }
-      case "queryEmbeddings": {
-        let { results } = await runPythonScript("index.py query", [
-          data.query,
-          2,
-          vscode.workspace.workspaceFolders?.[0].uri.fsPath,
-        ]);
-        panel.webview.postMessage({
-          type: "queryEmbeddings",
-          results,
-        });
-        break;
-      }
       case "openFile": {
         openEditorAndRevealRange(data.path, undefined, vscode.ViewColumn.One);
-        break;
-      }
-      case "streamUpdate": {
-        // Write code at the position of the cursor
-        streamManager.onStreamUpdate(data.update);
-        break;
-      }
-      case "closeStream": {
-        streamManager.closeStream();
-        break;
-      }
-      case "explainCode": {
-        sendTelemetryEvent(TelemetryEvent.ExplainCode);
-        let debugContext: SerializedDebugContext = addFileSystemToDebugContext(
-          data.debugContext
-        );
-        let resp = await debugApi.explainDebugExplainPost({
-          serializedDebugContext: debugContext,
-        });
-        panel.webview.postMessage({
-          type: "explainCode",
-          value: resp.completion,
-        });
         break;
       }
       case "withProgress": {
@@ -395,83 +327,6 @@ export function setupDebugPanel(
         );
         break;
       }
-      case "makeEdit": {
-        sendTelemetryEvent(TelemetryEvent.SuggestFix);
-        let suggestedEdits = data.edits;
-
-        if (
-          typeof suggestedEdits === "undefined" ||
-          suggestedEdits.length === 0
-        ) {
-          vscode.window.showInformationMessage(
-            "Continue couldn't find a fix for this error."
-          );
-          return;
-        }
-
-        for (let i = 0; i < suggestedEdits.length; i++) {
-          let edit = suggestedEdits[i];
-          await showSuggestion(
-            edit.filepath,
-            new vscode.Range(
-              edit.range.start.line,
-              edit.range.start.character,
-              edit.range.end.line,
-              edit.range.end.character
-            ),
-            edit.replacement
-          );
-        }
-        break;
-      }
-      case "generateUnitTest": {
-        sendTelemetryEvent(TelemetryEvent.CreateTest);
-        vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: "Generating Unit Test...",
-            cancellable: false,
-          },
-          async () => {
-            for (let i = 0; i < data.debugContext.rangesInFiles?.length; i++) {
-              let codeSelection = data.debugContext.rangesInFiles?.at(i);
-              if (
-                codeSelection &&
-                codeSelection.filepath &&
-                codeSelection.range
-              ) {
-                try {
-                  let filecontents = (
-                    await vscode.workspace.fs.readFile(
-                      vscode.Uri.file(codeSelection.filepath)
-                    )
-                  ).toString();
-                  let resp =
-                    await unittestApi.failingtestUnittestFailingtestPost({
-                      failingTestBody: {
-                        fp: {
-                          filecontents,
-                          lineno: codeSelection.range.end.line,
-                        },
-                        description: data.debugContext.description || "",
-                      },
-                    });
-
-                  if (resp.completion) {
-                    let decorationKey = await writeAndShowUnitTest(
-                      codeSelection.filepath,
-                      resp.completion
-                    );
-                    break;
-                  }
-                } catch {}
-              }
-            }
-          }
-        );
-
-        break;
-      }
     }
   });
 
@@ -496,10 +351,9 @@ export class ContinueGUIWebviewViewProvider
   implements vscode.WebviewViewProvider
 {
   public static readonly viewType = "continue.continueGUIView";
-  private readonly sessionId: string;
 
-  constructor(sessionId: string) {
-    this.sessionId = sessionId;
+  constructor(private readonly sessionIdPromise: Promise<string>) {
+    this.sessionIdPromise = sessionIdPromise;
   }
 
   resolveWebviewView(
@@ -507,6 +361,9 @@ export class ContinueGUIWebviewViewProvider
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): void | Thenable<void> {
-    webviewView.webview.html = setupDebugPanel(webviewView, this.sessionId);
+    webviewView.webview.html = setupDebugPanel(
+      webviewView,
+      this.sessionIdPromise
+    );
   }
 }

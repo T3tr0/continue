@@ -47,6 +47,15 @@ export class WebsocketMessenger extends Messenger {
         this.onMessageType(messageType, listener);
       }
     }
+
+    // Wait a second, then try to reconnect
+    this.onClose(() => {
+      console.log("Trying to reconnect in 1 second...");
+      setTimeout(() => {
+        this.websocket = this._newWebsocket();
+      }, 1000);
+    });
+
     return newWebsocket;
   }
 

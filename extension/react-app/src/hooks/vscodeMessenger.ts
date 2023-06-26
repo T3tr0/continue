@@ -61,6 +61,7 @@ export class VscodeMessenger extends Messenger {
       }
     });
   }
+
   onClose(callback: () => void): void {
     window.addEventListener("message", (event: any) => {
       if (event.data.type === "websocketForwardingClose") {

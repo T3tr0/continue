@@ -1,6 +1,8 @@
+import json
 from fastapi import WebSocket
 from typing import Any, Dict, List, Union
 from uuid import uuid4
+import atexit
 
 from ..models.filesystem_edit import FileEditWithFullContents
 from ..core.policy import DemoPolicy
@@ -39,6 +41,21 @@ class DemoAutopilot(Autopilot):
 class SessionManager:
     sessions: Dict[str, Session] = {}
     _event_loop: Union[asyncio.BaseEventLoop, None] = None
+
+    def __init__(self):
+        # atexit.register(self.persist_sessions)
+        pass
+
+    def persist_sessions(self):
+        print("Persisting sessions...")
+        for session_id, session in self.sessions.items():
+            print("Persisting session", session_id)
+            full_state = session.autopilot.get_full_state()
+            with open(f"session_{session_id}.json", "w") as f:
+                json.dump(full_state.dict(), f)
+
+        with open("session_manager.json", "w") as f:
+            json.dump(list(self.sessions.keys()), f)
 
     def get_session(self, session_id: str) -> Session:
         if session_id not in self.sessions:

@@ -1,71 +1,48 @@
-import AbstractContinueGUIClientProtocol from "./ContinueGUIClientProtocol";
-// import { Messenger, WebsocketMessenger } from "../../../src/util/messenger";
-import { Messenger, WebsocketMessenger } from "./messenger";
-import { VscodeMessenger } from "./vscodeMessenger";
+import React, { useEffect, useState } from "react";
+import { RootStore } from "../redux/store";
+import { useSelector } from "react-redux";
+import ContinueGUIClientProtocol from "./ContinueGUIProtocol";
+import { postVscMessage } from "../vscode";
 
-class ContinueGUIClientProtocol extends AbstractContinueGUIClientProtocol {
-  messenger: Messenger;
-  // Server URL must contain the session ID param
-  serverUrlWithSessionId: string;
+function useContinueGUIProtocol(useVscodeMessagePassing: boolean = true) {
+  const sessionId = useSelector((state: RootStore) => state.config.sessionId);
+  const serverHttpUrl = useSelector((state: RootStore) => state.config.apiUrl);
+  const [client, setClient] = useState<ContinueGUIClientProtocol | undefined>(
+    undefined
+  );
+  const [connected, setConnected] = useState<boolean>(false);
 
-  constructor(
-    serverUrlWithSessionId: string,
-    useVscodeMessagePassing: boolean
-  ) {
-    super();
-    this.serverUrlWithSessionId = serverUrlWithSessionId;
-    if (useVscodeMessagePassing) {
-      this.messenger = new VscodeMessenger(serverUrlWithSessionId);
-    } else {
-      this.messenger = new WebsocketMessenger(serverUrlWithSessionId);
+  useEffect(() => {
+    if (!sessionId || !serverHttpUrl) {
+      if (useVscodeMessagePassing) {
+        postVscMessage("onLoad", {});
+      }
+      setClient(undefined);
+      return;
     }
-  }
 
-  sendMainInput(input: string) {
-    this.messenger.send("main_input", { input });
-  }
+    const serverUrlWithSessionId =
+      serverHttpUrl.replace("http", "ws") +
+      "/gui/ws?session_id=" +
+      encodeURIComponent(sessionId);
 
-  reverseToIndex(index: number) {
-    this.messenger.send("reverse_to_index", { index });
-  }
-
-  sendRefinementInput(input: string, index: number) {
-    this.messenger.send("refinement_input", { input, index });
-  }
-
-  sendStepUserInput(input: string, index: number) {
-    this.messenger.send("step_user_input", { input, index });
-  }
-
-  onStateUpdate(callback: (state: any) => void) {
-    this.messenger.onMessageType("state_update", (data: any) => {
-      if (data.state) {
-        callback(data.state);
+    console.log("Creating websocket", serverUrlWithSessionId);
+    console.log("Using vscode message passing", useVscodeMessagePassing);
+    const newClient = new ContinueGUIClientProtocol(
+      serverUrlWithSessionId,
+      useVscodeMessagePassing,
+      () => {
+        console.log("Connected to websocket");
+        setConnected(true);
+      },
+      () => {
+        console.log("Disconnected from websocket");
+        setConnected(false);
       }
-    });
-  }
+    );
+    setClient(newClient);
+  }, [sessionId, serverHttpUrl]);
 
-  onAvailableSlashCommands(
-    callback: (commands: { name: string; description: string }[]) => void
-  ) {
-    this.messenger.onMessageType("available_slash_commands", (data: any) => {
-      if (data.commands) {
-        callback(data.commands);
-      }
-    });
-  }
-
-  sendClear() {
-    this.messenger.send("clear_history", {});
-  }
-
-  retryAtIndex(index: number) {
-    this.messenger.send("retry_at_index", { index });
-  }
-
-  deleteAtIndex(index: number) {
-    this.messenger.send("delete_at_index", { index });
-  }
+  return { client, connected };
 }
-
-export default ContinueGUIClientProtocol;
+export default useContinueGUIProtocol;
