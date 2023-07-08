@@ -154,6 +154,8 @@ class IdeProtocolServer(AbstractIdeProtocolServer):
             self.onMainUserInput(data["input"])
         elif message_type == "deleteAtIndex":
             self.onDeleteAtIndex(data["index"])
+        elif message_type == "recentlyOpenedFiles":
+            self.onRecentlyOpenedFiles(data["recentlyOpenedFiles"])
         elif message_type in ["highlightedCode", "openFiles", "readFile", "editFile", "workspaceDirectory", "getUserSecret", "runCommand", "uniqueId"]:
             self.sub_queue.post(message_type, data)
         else:
@@ -268,6 +270,11 @@ class IdeProtocolServer(AbstractIdeProtocolServer):
         for _, session in self.session_manager.sessions.items():
             asyncio.create_task(
                 session.autopilot.accept_user_input(input))
+
+    def onRecentlyOpenedFiles(self, recently_opened_files: List[str]):
+        for _, session in self.session_manager.sessions.items():
+            asyncio.create_task(
+                session.autopilot.handle_recently_opened_files(recently_opened_files))
 
     # Request information. Session doesn't matter.
     async def getOpenFiles(self) -> List[str]:

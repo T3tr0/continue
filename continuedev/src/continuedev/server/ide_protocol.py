@@ -96,6 +96,10 @@ class AbstractIdeProtocolServer(ABC):
         """Called when highlighted code is updated"""
 
     @abstractmethod
+    def onRecentlyOpenedFiles(self, recently_opened_files: List[str]):
+        """Called when recently opened files are updated"""
+
+    @abstractmethod
     def onDeleteAtIndex(self, index: int):
         """Called when a step is deleted at a given index"""
 

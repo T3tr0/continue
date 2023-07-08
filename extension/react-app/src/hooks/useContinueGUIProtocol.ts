@@ -86,6 +86,10 @@ class ContinueGUIClientProtocol extends AbstractContinueGUIClientProtocol {
   toggleAddingHighlightedCode(): void {
     this.messenger.send("toggle_adding_highlighted_code", {});
   }
+
+  addFileAsContext(filepath: string): void {
+    this.messenger.send("add_file_as_context", { filepath });
+  }
 }
 
 export default ContinueGUIClientProtocol;

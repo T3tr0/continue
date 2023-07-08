@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useState,
@@ -25,6 +26,8 @@ import {
   DocumentPlus,
 } from "@styled-icons/heroicons-outline";
 import { HighlightedRangeContext } from "../../../schema/FullState";
+import path from "path";
+import { GUIClientContext } from "../App";
 
 // #region styled components
 const mainInputFontSize = 13;
@@ -138,6 +141,7 @@ interface ComboBoxProps {
   disabled?: boolean;
   onEnter: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   highlightedCodeSections: HighlightedRangeContext[];
+  recentlyOpenedFiles: string[];
   deleteContextItems: (indices: number[]) => void;
   onTogglePin: () => void;
   onToggleAddContext: () => void;
@@ -157,6 +161,9 @@ const ComboBox = React.forwardRef((props: ComboBoxProps, ref) => {
     props.highlightedCodeSections || []
   );
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const [showContextDropdown, setShowContextDropdown] = React.useState(false);
+
+  const client = useContext(GUIClientContext);
 
   useEffect(() => {
     setHighlightedCodeSections(props.highlightedCodeSections || []);
@@ -171,10 +178,27 @@ const ComboBox = React.forwardRef((props: ComboBoxProps, ref) => {
           item.name.toLowerCase().startsWith(inputValue.toLowerCase())
         )
       );
+
+      if (inputValue.endsWith("@")) {
+        const recentlyOpenedFilesItems = props.recentlyOpenedFiles.map(
+          (file) => ({
+            name: `@${file.split(/[\\/]/).pop()}`,
+            description: `Add file to context: ${file}`,
+          })
+        );
+        setItems(recentlyOpenedFilesItems);
+      }
     },
     items,
     itemToString(item) {
       return item ? item.name : "";
+    },
+    onSelectedItemChange({ selectedItem }) {
+      if (!selectedItem) return;
+      if (selectedItem.name.startsWith("@")) {
+        client?.addFileAsContext(selectedItem.description.split(": ")[1]);
+        downshiftProps.setInputValue("");
+      }
     },
   });
 
@@ -282,8 +306,6 @@ const ComboBox = React.forwardRef((props: ComboBoxProps, ref) => {
                 target.scrollHeight,
                 300
               ).toString()}px`;
-
-              // setShowContextDropdown(target.value.endsWith("@"));
             },
             onKeyDown: (event) => {
               if (event.key === "Enter" && event.shiftKey) {
@@ -350,8 +372,9 @@ const ComboBox = React.forwardRef((props: ComboBoxProps, ref) => {
                 highlighted={downshiftProps.highlightedIndex === index}
                 selected={downshiftProps.selectedItem === item}
               >
-                <span>
-                  {item.name}: {item.description}
+                <span style={{ color: "gray" }}>
+                  {item.name}:{" "}
+                  <span style={{ color: "gray" }}>{item.description}</span>
                 </span>
               </Li>
             ))}

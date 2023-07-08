@@ -71,6 +71,7 @@ class Autopilot(ContinueBaseModel):
             highlighted_ranges=self._highlighted_ranges,
             slash_commands=self.get_available_slash_commands(),
             adding_highlighted_code=self._adding_highlighted_code,
+            recently_opened_files=self._recently_opened_files,
         )
 
     def get_available_slash_commands(self) -> List[Dict]:
@@ -150,6 +151,11 @@ class Autopilot(ContinueBaseModel):
         if not any(map(lambda x: x.editing, self._highlighted_ranges)):
             self._highlighted_ranges[0].editing = True
 
+    async def add_file_as_context(self, filepath: str):
+        file_contents = await self.ide.readFile(filepath)
+        rif = RangeInFileWithContents.from_entire_file(filepath, file_contents)
+        await self.handle_highlighted_code([rif])
+
     async def handle_highlighted_code(self, range_in_files: List[RangeInFileWithContents]):
 
         # If un-highlighting, then remove the range
@@ -199,6 +205,24 @@ class Autopilot(ContinueBaseModel):
         ) for rif in range_in_files]
 
         self._make_sure_is_editing_range()
+
+        await self.update_subscribers()
+
+    _recently_opened_files: List[str] = []
+
+    async def handle_recently_opened_files(self, recently_opened_files: List[str]):
+        # Remove the file path if it's already in the array
+        for filePath in recently_opened_files:
+            if filePath in self._recently_opened_files:
+                self._recently_opened_files.remove(filePath)
+
+        # Add the file paths to the start of the array
+        self._recently_opened_files = recently_opened_files + \
+            self._recently_opened_files
+
+        # Ensure the array length doesn't exceed 10
+        if len(self._recently_opened_files) > 10:
+            self._recently_opened_files = self._recently_opened_files[:10]
 
         await self.update_subscribers()
 

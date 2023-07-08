@@ -216,6 +216,7 @@ class FullState(ContinueBaseModel):
     highlighted_ranges: List[HighlightedRangeContext]
     slash_commands: List[SlashCommandDescription]
     adding_highlighted_code: bool
+    recently_opened_files: List[str]
 
 
 class ContinueSDK:

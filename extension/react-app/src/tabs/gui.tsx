@@ -76,6 +76,7 @@ function GUI(props: GUIProps) {
   const [highlightedRanges, setHighlightedRanges] = useState<
     HighlightedRangeContext[]
   >([]);
+  const [recentlyOpenedFiles, setRecentlyOpenedFiles] = useState<string[]>([]);
   const [addingHighlightedCode, setAddingHighlightedCode] = useState(false);
   const [availableSlashCommands, setAvailableSlashCommands] = useState<
     { name: string; description: string }[]
@@ -178,6 +179,8 @@ function GUI(props: GUIProps) {
       setHighlightedRanges(state.highlighted_ranges);
       setUserInputQueue(state.user_input_queue);
       setAddingHighlightedCode(state.adding_highlighted_code);
+      setRecentlyOpenedFiles(state.recently_opened_files);
+      console.log(state.recently_opened_files);
       setAvailableSlashCommands(
         state.slash_commands.map((c: any) => {
           return {
@@ -363,6 +366,7 @@ function GUI(props: GUIProps) {
           onInputValueChange={() => {}}
           items={availableSlashCommands}
           highlightedCodeSections={highlightedRanges}
+          recentlyOpenedFiles={recentlyOpenedFiles}
           deleteContextItems={deleteContextItems}
           onTogglePin={() => {
             setPinned((prev: boolean) => !prev);

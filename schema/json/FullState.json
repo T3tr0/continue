@@ -288,6 +288,13 @@
         "adding_highlighted_code": {
           "title": "Adding Highlighted Code",
           "type": "boolean"
+        },
+        "recently_opened_files": {
+          "title": "Recently Opened Files",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -297,7 +304,8 @@
         "default_model",
         "highlighted_ranges",
         "slash_commands",
-        "adding_highlighted_code"
+        "adding_highlighted_code",
+        "recently_opened_files"
       ]
     }
   }

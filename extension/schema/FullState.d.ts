@@ -37,6 +37,7 @@ export type Name3 = string;
 export type Description1 = string;
 export type SlashCommands = SlashCommandDescription[];
 export type AddingHighlightedCode = boolean;
+export type RecentlyOpenedFiles = string[];
 
 /**
  * A full state of the program, including the history
@@ -49,6 +50,7 @@ export interface FullState1 {
   highlighted_ranges: HighlightedRanges;
   slash_commands: SlashCommands;
   adding_highlighted_code: AddingHighlightedCode;
+  recently_opened_files: RecentlyOpenedFiles;
   [k: string]: unknown;
 }
 /**

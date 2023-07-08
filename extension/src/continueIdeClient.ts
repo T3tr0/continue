@@ -39,6 +39,23 @@ class IdeProtocolClient {
       this.handleMessage(messageType, data, messenger);
     });
 
+    // Initially set recently opened files to the files currently open in the editor
+    this.messenger?.send("recentlyOpenedFiles", {
+      recentlyOpenedFiles: vscode.window.visibleTextEditors.map(
+        (editor) => editor.document.uri.fsPath
+      ),
+    });
+
+    // Listener for file opening
+    vscode.window.onDidChangeVisibleTextEditors((editors) => {
+      // Send the updated list of recently opened files
+      this.messenger?.send("recentlyOpenedFiles", {
+        recentlyOpenedFiles: editors.map(
+          (editor) => editor.document.uri.fsPath
+        ),
+      });
+    });
+
     // Setup listeners for any file changes in open editors
     // vscode.workspace.onDidChangeTextDocument((event) => {
     //   if (this._makingEdit === 0) {
