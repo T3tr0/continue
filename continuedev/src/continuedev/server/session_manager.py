@@ -6,7 +6,7 @@ import json
 
 from fastapi.websockets import WebSocketState
 
-from ..libs.util.paths import getSessionFilePath, getSessionsFolderPath
+from ..libs.util.paths import getSessionFilePath, getSessionsFolderPath, persist_full_state
 from ..models.filesystem_edit import FileEditWithFullContents
 from ..libs.constants.main import CONTINUE_SESSIONS_FOLDER
 from ..core.policy import DefaultPolicy
@@ -99,8 +99,7 @@ class SessionManager:
     async def persist_session(self, session_id: str):
         """Save the session's FullState as a json file"""
         full_state = await self.sessions[session_id].autopilot.get_full_state()
-        with open(getSessionFilePath(session_id), "w") as f:
-            json.dump(full_state.dict(), f)
+        persist_full_state(full_state, session_id)
 
     def register_websocket(self, session_id: str, ws: WebSocket):
         self.sessions[session_id].ws = ws

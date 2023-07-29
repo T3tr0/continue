@@ -4,6 +4,7 @@ import time
 from typing import Any, Callable, Coroutine, Dict, List, Union
 from aiohttp import ClientPayloadError
 from pydantic import root_validator
+from datetime import datetime
 
 from ..models.filesystem import RangeInFileWithContents
 from ..models.filesystem_edit import FileEditWithFullContents
@@ -22,6 +23,7 @@ from openai import error as openai_errors
 from ..libs.util.create_async_task import create_async_task
 from ..libs.util.telemetry import posthog_logger
 from ..libs.util.logging import logger
+from ..libs.util.paths import persist_full_state
 
 
 def get_error_title(e: Exception) -> str:
@@ -104,6 +106,23 @@ class Autopilot(ContinueBaseModel):
         self.full_state = full_state
         return full_state
 
+    async def load_from_session_file(self, filepath: str):
+        try:
+            with open(filepath, "r") as f:
+                full_state = FullState.parse_raw(f.read())
+        except Exception as e:
+            logger.error(e)
+            return
+
+        self.history = full_state.history
+        self._active = full_state.active
+        self._main_user_input_queue = full_state.user_input_queue
+        self.continue_sdk.config.default_model = full_state.default_model
+        self.context_manager.context_providers["code"].adding_highlighted_code = full_state.adding_highlighted_code
+        await self.context_manager.select_context_items(full_state.selected_context_items)
+
+        await self.update_subscribers()
+
     def get_available_slash_commands(self) -> List[Dict]:
         custom_commands = list(map(lambda x: {
                                "name": x.name, "description": x.description}, self.continue_sdk.config.custom_commands)) or []
@@ -112,6 +131,9 @@ class Autopilot(ContinueBaseModel):
         return custom_commands + slash_commands
 
     async def clear_history(self):
+        # First, persist the session
+        persist_full_state(await self.get_full_state(), datetime.now().strftime("%Y%m%d-%H%M%S"))
+
         # Reset history
         self.history = History.from_empty()
         self._main_user_input_queue = []

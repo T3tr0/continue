@@ -1,5 +1,7 @@
+import json
 import os
 
+from ...core.main import FullState
 from ..constants.main import CONTINUE_SESSIONS_FOLDER, CONTINUE_GLOBAL_FOLDER, CONTINUE_SERVER_FOLDER
 
 
@@ -49,3 +51,9 @@ def getConfigFilePath() -> str:
 def getLogFilePath():
     path = os.path.join(getGlobalFolderPath(), "continue.log")
     return path
+
+
+def persist_full_state(full_state: FullState, filepath: str):
+    """Save the session's FullState as a json file"""
+    with open(getSessionFilePath(filepath), "w") as f:
+        json.dump(full_state.dict(), f)
